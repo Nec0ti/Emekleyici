@@ -1,42 +1,39 @@
 // utils.js
 const fs = require('fs');
-const axios = require('axios');
+const path = require('path');
 
-/**
- * Save JSON data to a file.
- * @param {string} path - The file path.
- * @param {Object} data - The data to save.
- */
-function saveJSON(path, data) {
+function saveResultsToJson(data, filePath) {
   try {
-    fs.mkdirSync('results', { recursive: true });
-    fs.writeFileSync(path, JSON.stringify(data, null, 2));
-    console.log(`JSON saved to ${path}`);
+    const jsonData = JSON.stringify(data, null, 2);
+    fs.writeFileSync(filePath, jsonData);
+    console.log(`Sonuçlar ${filePath} adresine kaydedildi.`);
   } catch (error) {
-    console.error('Error saving JSON:', error.message);
+    console.error('JSON dosyasına yazılırken hata oluştu:', error);
   }
 }
 
-/**
- * Download and save an image.
- * @param {string} url - The image URL.
- * @param {string} path - The file path to save the image.
- */
-async function saveImage(url, path) {
-  try {
-    const response = await axios({ url, method: 'GET', responseType: 'stream' });
-    fs.mkdirSync('results/images', { recursive: true });
-
-    const writer = fs.createWriteStream(path);
-    response.data.pipe(writer);
-
-    return new Promise((resolve, reject) => {
-      writer.on('finish', resolve);
-      writer.on('error', reject);
-    });
-  } catch (error) {
-    console.error('Error saving image:', error.message);
+function createDirectoryIfNotExists(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+    console.log(`${dirPath} klasörü oluşturuldu.`);
   }
 }
 
-module.exports = { saveJSON, saveImage };
+function handleError(errorMessage, error) {
+  console.error(`HATA: ${errorMessage}`);
+  if (error) {
+    console.error(error);
+  }
+}
+
+// İsteğe bağlı: Konsol çıktılarını daha düzenli hale getirmek için
+function logMessage(message) {
+  console.log(`[Emekleyici] ${message}`);
+}
+
+module.exports = {
+  saveResultsToJson,
+  createDirectoryIfNotExists,
+  handleError,
+  logMessage,
+};

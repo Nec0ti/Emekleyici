@@ -1,62 +1,75 @@
+#!/usr/bin/env node
+import { program } from 'commander';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import * as ai from './ai.js';
+import crawler from './crawler.js';
+import * as utils from './utils.js';
 
-// emekleyici.js
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const fs = require('fs');
-const readline = require('readline');
-const { crawl } = require('./crawler'); // Crawler fonksiyonunu import ediyoruz
-const { aiSort } = require('./ai'); // AI sıralama fonksiyonunu import ediyoruz
+// Çıktı klasörlerini oluştur
+const resultsDir = path.join(__dirname, 'results');
+const imagesDir = path.join(resultsDir, 'images');
 
-// CLI arayüzü için readline arayüzü oluşturuyoruz
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
+// Klasörlerin varlığını kontrol et ve yoksa oluştur
+utils.createDirectoryIfNotExists(resultsDir);
+utils.createDirectoryIfNotExists(imagesDir);
 
-console.log("\n--- Emekleyici: Akıllı Web Taraması ---\n");
+program
+  .version('0.1.0')
+  .description('İnternette belirtilen sorgular için tarama yapar ve sonuçları JSON veya WEBP olarak kaydeder.')
+  .option('-q, --query <string>', 'Aranacak kelime veya ifade (zorunlu)')
+  .option('-t, --type <type>', 'Aranacak içerik türü: article, image (varsayılan: article)', 'article')
+  .option('-n, --numResults <number>', 'İstenen sonuç sayısı (varsayılan: 10)', parseInt)
+  .option('--no-ai', 'AI sıralamasını devre dışı bırak')
+  .parse(process.argv);
 
-// Kullanıcıdan giriş alacağımız temel fonksiyon
-function askQuestion(query) {
-  return new Promise((resolve) => rl.question(query, resolve));
-}
+const options = program.opts();
 
-(async function main() {
+async function main() {
+  if (!options.query) {
+    utils.handleError('Lütfen aranacak bir sorgu belirtin. (-q veya --query)');
+    process.exit(1);
+  }
+
+  const query = options.query;
+  const type = options.type;
+  const numResults = options.numResults || 10;
+  const useAI = options.ai;
+
+  utils.logMessage(`Emekleyici çalışıyor...`);
+  utils.logMessage(`Sorgu: ${query}`);
+  utils.logMessage(`Tür: ${type}`);
+  utils.logMessage(`İstenen Sonuç Sayısı: ${numResults}`);
+  utils.logMessage(`AI Kullanımı: ${useAI ? 'Aktif' : 'Devre Dışı'}`);
+
   try {
-    // Kullanıcıdan arama terimini alıyoruz
-    const searchQuery = await askQuestion("Aramak istediğiniz kelime/konu nedir? \n> ");
-
-    // Kullanıcıdan arama türünü seçmesini istiyoruz
-    const searchType = await askQuestion("Arama türü seçin (makale, resim, genel): \n> ");
-
-    // Kullanıcıdan sonuç sayısını alıyoruz
-    const resultCount = await askQuestion("Kaç sonuç istiyorsunuz? (Örnek: 10) \n> ");
-
-    console.log("\nEmekleyici, aramaya başlıyor...\n");
-
-    // Crawler fonksiyonunu çağırıyoruz
-    const results = await crawl(searchQuery, searchType, parseInt(resultCount, 10));
-
-    console.log("Arama tamamlandı! Sonuçlar işleniyor...\n");
-
-    // Sonuçları AI ile sıralamak isteyip istemediğini soruyoruz
-    const useAI = await askQuestion("Sonuçları AI ile sıralamak ister misiniz? (evet/hayır): \n> ");
-
-    let sortedResults = results;
-
-    if (useAI.toLowerCase() === 'evet') {
-      console.log("AI sıralaması yapılıyor...");
-      sortedResults = aiSort(results); // AI sıralama fonksiyonu çağırılıyor
-      console.log("AI sıralaması tamamlandı!\n");
+    let results = [];
+    if (type === 'article') {
+      utils.logMessage('\nMakale aranıyor...');
+      results = await crawler.crawlArticles(query, numResults);
+      if (useAI) {
+        utils.logMessage('AI ile sonuçlar sıralanıyor...');
+        results = ai.rankResults(results, query);
+      }
+      utils.saveResultsToJson(results, path.join(resultsDir, 'results.json'));
+      utils.logMessage(`\nMakale sonuçları ${path.join(resultsDir, 'results.json')} adresine kaydedildi.`);
+    } else if (type === 'image') {
+      utils.logMessage('\nResim aranıyor ve indiriliyor...');
+      results = await crawler.crawlImages(query, numResults, imagesDir);
+      utils.logMessage(`\nResimler ${imagesDir} klasörüne indirildi.`);
+      // Resimler için AI sıralaması mantığı burada eklenebilir.
+    } else {
+      utils.handleError(`Geçersiz içerik türü. 'article' veya 'image' belirtin.`);
+      process.exit(1);
     }
 
-    // Sonuçları JSON olarak kaydediyoruz
-    const outputPath = `results/results.json`;
-    fs.writeFileSync(outputPath, JSON.stringify(sortedResults, null, 2));
-
-    console.log(`Sonuçlar başarıyla kaydedildi: ${outputPath}`);
-
+    utils.logMessage('\nTarama tamamlandı.\n');
   } catch (error) {
-    console.error("Bir hata oluştu:", error.message);
-  } finally {
-    rl.close();
+    utils.handleError('Bir hata oluştu:', error);
   }
-})();
+}
+
+main();

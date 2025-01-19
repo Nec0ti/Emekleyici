@@ -1,41 +1,39 @@
 // ai.js
-const fs = require('fs');
-const natural = require('natural');
 
 /**
- * Sort results based on relevance using NLP.
- * @param {Array} results - The array of results to sort.
- * @param {string} query - The user's search query.
- * @returns {Array} - The sorted array of results.
+ * Verilen sonuçları sorguya göre sıralar.
+ * Şu an için basit bir anahtar kelime eşleşmesi ile sıralama yapmaktadır.
+ * İleride daha gelişmiş AI algoritmaları entegre edilebilir.
+ *
+ * @param {Array<object>} results Sıralanacak sonuç dizisi.
+ * @param {string} query Arama sorgusu.
+ * @returns {Array<object>} Sıralanmış sonuç dizisi.
  */
-function sortResultsWithAI(results, query) {
-  const tokenizer = new natural.WordTokenizer();
-  const queryTokens = tokenizer.tokenize(query.toLowerCase());
-
-  return results
-    .map((result) => {
-      const text = result.title || result.url || '';
-      const textTokens = tokenizer.tokenize(text.toLowerCase());
-
-      // Calculate similarity based on token overlap
-      const overlap = textTokens.filter((token) => queryTokens.includes(token)).length;
-      return { ...result, relevance: overlap };
-    })
-    .sort((a, b) => b.relevance - a.relevance);
-}
-
-/**
- * Save sorted results to a file.
- * @param {Array} results - The sorted results.
- */
-function saveSortedResults(results) {
-  const sortedPath = 'results/sorted_results.json';
-  try {
-    fs.writeFileSync(sortedPath, JSON.stringify(results, null, 2));
-    console.log(`Sorted results saved to ${sortedPath}`);
-  } catch (error) {
-    console.error('Error saving sorted results:', error.message);
+function rankResults(results, query) {
+  if (!results || results.length === 0) {
+    return [];
   }
+
+  const lowerCaseQuery = query.toLowerCase();
+
+  // Basit anahtar kelime eşleşmesi skoru
+  const scoredResults = results.map(result => {
+    let score = 0;
+    if (result.title && result.title.toLowerCase().includes(lowerCaseQuery)) {
+      score += 2; // Başlıkta eşleşme daha yüksek skor
+    }
+    if (result.summary && result.summary.toLowerCase().includes(lowerCaseQuery)) {
+      score += 1;
+    }
+    return { ...result, score };
+  });
+
+  // Skorlarına göre azalan sırada sırala
+  scoredResults.sort((a, b) => b.score - a.score);
+
+  return scoredResults.map(({ score, ...rest }) => rest); // Skoru çıkar ve sıralanmış sonuçları döndür
 }
 
-module.exports = { sortResultsWithAI, saveSortedResults };
+module.exports = {
+  rankResults,
+};

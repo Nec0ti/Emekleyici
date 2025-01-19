@@ -1,0 +1,1 @@
+node emekleyici.js -q "yapay zeka" -t article -n 5

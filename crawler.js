@@ -1,72 +1,98 @@
 // crawler.js
-const axios = require('axios');
-const cheerio = require('cheerio');
-const { saveJSON, saveImage } = require('./utils');
+import * as cheerio from 'cheerio';
+import fetch from 'node-fetch';
 
-/**
- * Crawl the web based on the search query and type.
- * @param {string} query - The search query.
- * @param {string} type - The type of search (e.g., 'makale', 'resim', 'genel').
- * @param {number} limit - The number of results to retrieve.
- * @returns {Promise<Array>} - The results as an array of objects.
- */
-async function crawl(query, type, limit) {
-  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-  const headers = {
-    'User-Agent':
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-  };
+const SEARCH_ENGINES = {
+  google: {
+    baseUrl: 'https://www.google.com/search',
+    selector: '.tF2Cxc',
+    titleSelector: 'h3',
+    linkSelector: 'a',
+    snippetSelector: '.VwiC3b',
+  },
+  duckduckgo: {
+    baseUrl: 'https://duckduckgo.com/',
+    selector: '.nrn-react-div',
+    titleSelector: 'h2 a',
+    linkSelector: 'h2 a',
+    snippetSelector: '.EkJbZ8I9O87muDMYwuqd',
+  },
+  wikipedia: {
+    baseUrl: 'https://en.wikipedia.org/w/index.php',
+    selector: '.mw-search-result',
+    titleSelector: '.mw-search-result-heading a',
+    linkSelector: '.mw-search-result-heading a',
+    snippetSelector: '.searchResultSnippet',
+  },
+};
 
-  const results = [];
+async function search(query, numResults, engine) {
+  const searchEngineConfig = SEARCH_ENGINES[engine];
+  if (!searchEngineConfig) {
+    throw new Error(`Desteklenmeyen arama motoru: ${engine}`);
+  }
+
+  const { baseUrl, selector, titleSelector, linkSelector, snippetSelector } = searchEngineConfig;
+  const urlParams = new URLSearchParams({ q: query });
+  if (engine === 'wikipedia') {
+    urlParams.set('search', query);
+  }
+
+  const searchUrl = `${baseUrl}?${urlParams.toString()}`;
 
   try {
-    // Fetch the search page
-    const response = await axios.get(searchUrl, { headers });
-    const $ = cheerio.load(response.data);
-
-    if (type === 'makale' || type === 'genel') {
-      // Extract article links and titles
-      $('a').each((i, element) => {
-        if (results.length >= limit) return false;
-
-        const title = $(element).text();
-        const url = $(element).attr('href');
-
-        if (url && title) {
-          results.push({ title, url });
-        }
-      });
+    const response = await fetch(searchUrl);
+    if (!response.ok) {
+      throw new Error(`${engine} için HTTP hatası! Durum: ${response.status}`);
     }
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    const results = [];
+    let count = 0;
 
-    if (type === 'resim' || type === 'genel') {
-      // Extract image URLs (placeholder logic for image scraping)
-      $('img').each((i, element) => {
-        if (results.length >= limit) return false;
-
-        const imageUrl = $(element).attr('src');
-        if (imageUrl) {
-          results.push({ imageUrl });
-        }
-      });
-    }
-
-    // Save the results as a JSON file
-    saveJSON('results/results.json', results);
-
-    // Save images if type is 'resim'
-    if (type === 'resim') {
-      for (const result of results) {
-        if (result.imageUrl) {
-          await saveImage(result.imageUrl, `results/images/${Date.now()}.webp`);
-        }
+    $(selector).each((i, el) => {
+      if (count >= numResults) {
+        return false; // İstenen sonuca ulaşıldı, döngüyü kır
       }
-    }
+
+      const titleElement = $(el).find(titleSelector);
+      const linkElement = $(el).find(linkSelector);
+      const snippetElement = $(el).find(snippetSelector);
+
+      const title = titleElement.text().trim();
+      const link = linkElement.attr('href');
+      const snippet = snippetElement ? snippetElement.text().trim() : '';
+
+      if (title && link) {
+        results.push({ title, link, source: engine, snippet });
+        count++;
+      }
+    });
 
     return results;
   } catch (error) {
-    console.error('Crawl error:', error.message);
-    throw error;
+    console.error(`${engine} araması sırasında hata oluştu:`, error);
+    return [];
   }
 }
 
-module.exports = { crawl };
+async function crawlArticles(query, numResults) {
+  let allResults = [];
+
+  for (const engine of Object.keys(SEARCH_ENGINES)) {
+    const engineResults = await search(query, numResults, engine);
+    allResults = allResults.concat(engineResults);
+  }
+
+  return allResults.slice(0, numResults); // Toplamda istenen sonuç sayısını geçmeyin
+}
+
+async function crawlImages(query, numResults, imageDir) {
+  console.log(`'${query}' için ${numResults} resim aranıyor (gerçek implementasyon bekleniyor)...`);
+  return new Promise(resolve => setTimeout(resolve, 1000));
+}
+
+export default {
+  crawlArticles,
+  crawlImages
+};
