@@ -1,0 +1,31 @@
+{
+  "name": "emekleyici",
+  "version": "1.0.0",
+  "description": "Emekleyici",
+  "main": "emekleyici.js",
+  "scripts": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nec0ti/Emekleyici.git"
+  },
+  "keywords": [
+    "emekleyici",
+    "crawler",
+    "web",
+    "scraper",
+    "web-scraper"
+  ],
+  "author": "Necoti",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Nec0ti/Emekleyici/issues"
+  },
+  "homepage": "https://github.com/Nec0ti/Emekleyici#readme",
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "commander": "^12.0.0",
+    "node-fetch": "^3.3.2"
+  }
+}
